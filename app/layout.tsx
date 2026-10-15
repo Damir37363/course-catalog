@@ -32,6 +32,12 @@ export default function RootLayout({
             Courses
           </Link>
           <Link
+            href="/filter"
+            className="hover:text-brand transition-colors"
+          >
+            Filter
+          </Link>
+          <Link
             href="/about"
             className="hover:text-brand transition-colors"
           >
