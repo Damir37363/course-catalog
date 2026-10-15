@@ -5,77 +5,30 @@ export type Course = {
   credits: number;
   isElective: boolean;
   likes: number;
-  courseraUrl: string;
 };
 
-const courses: Course[] = [
-  {
-    id: "modern-frontend",
-    title: "Modern Frontend: React & Next.js",
-    description: "React 19, Server Components, and the App Router.",
-    credits: 5,
-    isElective: false,
-    likes: 24,
-    courseraUrl: "https://www.coursera.org/learn/introduction-to-next-js",
-  },
-  {
-    id: "backend-fastapi",
-    title: "Backend Foundations: FastAPI",
-    description: "Async REST APIs in Python with FastAPI and Pydantic.",
-    credits: 5,
-    isElective: false,
-    likes: 19,
-    courseraUrl:
-      "https://www.coursera.org/learn/introduction-to-fastapi-framework",
-  },
-  {
-    id: "databases-postgresql",
-    title: "Relational Databases: PostgreSQL",
-    description: "Schema design, SQLAlchemy, and migrations with Alembic.",
-    credits: 5,
-    isElective: false,
-    likes: 15,
-    courseraUrl: "https://www.coursera.org/learn/intermediate-postgresql",
-  },
-  {
-    id: "api-design",
-    title: "API Design: REST vs GraphQL",
-    description: "Comparing REST and GraphQL in practice.",
-    credits: 4,
-    isElective: true,
-    likes: 11,
-    courseraUrl: "https://www.coursera.org/learn/advanced-api-technologies",
-  },
-  {
-    id: "web-security",
-    title: "Web Security Essentials",
-    description: "JWT/OAuth2, defending against XSS, CSRF, SQL injection.",
-    credits: 4,
-    isElective: false,
-    likes: 21,
-    courseraUrl:
-      "https://www.coursera.org/learn/codio-software-security-for-web-applications",
-  },
-  {
-    id: "ai-integration",
-    title: "AI/LLM Integration",
-    description: "LLM features in an app, wired up via the OpenAI API.",
-    credits: 5,
-    isElective: true,
-    likes: 32,
-    courseraUrl:
-      "https://www.coursera.org/learn/packt-build-apps-and-fine-tune-llms-using-the-openai-api-16vi7",
-  },
-];
+export type Enrollment = {
+  id: number;
+  courseId: string;
+  studentName: string;
+};
 
-function delay<T>(value: T, ms = 300): Promise<T> {
-  return new Promise((resolve) => setTimeout(() => resolve(value), ms));
-}
+const API_URL = process.env.API_URL;
+if (!API_URL) throw new Error("API_URL is not set: create .env.local");
 
 export async function getCourses(): Promise<Course[]> {
-  return delay(courses);
+  // no-store: request fresh data on every visit (otherwise the page may be
+  // built in advance and the data would "freeze")
+  const res = await fetch(`${API_URL}/courses`, { cache: "no-store" });
+  // fetch does not throw on 404/500 — check res.ok by hand
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.json();
 }
 
 export async function getCourse(id: string): Promise<Course | undefined> {
-  return delay(courses.find((c) => c.id === id));
+  const res = await fetch(`${API_URL}/courses/${id}`, { cache: "no-store" });
+  // 404 is not an error here, it means "no such course"
+  if (res.status === 404) return undefined;
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.json();
 }
