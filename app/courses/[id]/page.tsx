@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getCourse } from "@/lib/courses";
-import LikeButton from "@/components/LikeButton";
+import { LikeButton } from "@/components/LikeButton";
+import { EnrollForm } from "@/components/EnrollForm";
 import { Button } from "@/components/ui/button";
 import { COURSERA_URLS } from "@/lib/coursera";
 
@@ -22,7 +23,7 @@ export default async function CoursePage({
       <p className="text-muted-foreground">{course.description}</p>
       <span className="text-sm text-muted-foreground">{course.credits} credits</span>
       <div className="flex flex-wrap items-center gap-3">
-        <LikeButton initialLikes={course.likes} />
+        <LikeButton courseId={course.id} initialLikes={course.likes} />
         {COURSERA_URLS[course.id] && (
           <Button asChild>
             <a
@@ -35,6 +36,10 @@ export default async function CoursePage({
           </Button>
         )}
       </div>
+      <h2 className="mt-4 text-xl font-semibold font-heading">
+        Enroll in this course
+      </h2>
+      <EnrollForm courseId={course.id} />
     </div>
   );
 }
