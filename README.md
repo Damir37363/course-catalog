@@ -63,8 +63,8 @@ Each breakage was introduced one at a time in `course-catalog-api/main.py`, then
 ### Breakage 1: CORS removed entirely
 
 - What I did: commented out the whole block `app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:3000"], allow_methods=["*"], allow_headers=["*"])`.
-- Console: `Access to fetch at 'http://localhost:8000/courses' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.` (the same on ❤; for the form: `... Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present ...`).
-- Network: `courses` is red (CORS error), but the backend log says `GET /courses 200 OK`. ❤: the same CORS error, and the log says `POST /courses/web-security/like 200 OK` — the like was counted on the server. Form: `OPTIONS /enrollments` → `405 Method Not Allowed`, the `POST` is never sent. The `/courses` page works (the Next.js server's `GET /courses 200 OK` is in the backend log).
+- Console: `Access to fetch at 'http://localhost:8000/courses' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.` followed by `Failed to load resource: net::ERR_FAILED` (the same on ❤; for the form: `... Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.`).
+- Network: `courses` is red (CORS error; Chrome's reason: `MissingAllowOriginHeader`), but the backend log says `GET /courses 200 OK`; the page shows "Failed to load courses". ❤: the same CORS error, the number stays 21 and "Failed to like the course" appears, yet the log says `POST /courses/web-security/like 200 OK` — the like was counted on the server. Form: `OPTIONS /enrollments` → `405 Method Not Allowed`, the `POST` is never sent (no `POST /enrollments` in the backend log) and the form says "Could not submit the enrollment". The `/courses` page works (the Next.js server's `GET /courses 200 OK` is in the backend log).
 - Cause: there is no `access-control-allow-origin` in any response because `CORSMiddleware` is not connected; the server still executes requests (the browser only hides the response), and requests made by Server Components are not affected by CORS at all.
 - How I found it: step 3 (no `access-control-allow-origin` in Response Headers) and step 4 (`OPTIONS` got 405 — not 400 — which means CORS is not connected at all).
 
@@ -80,7 +80,7 @@ Each breakage was introduced one at a time in `course-catalog-api/main.py`, then
 
 - What I did: deleted the line `allow_methods=["*"],` (by default only `GET` is allowed).
 - Console: `/filter` and ❤ work; on the form `... Response to preflight request doesn't pass access control check: It does not have HTTP ok status.`
-- Network: `GET courses` and `POST like` are fine (200, both responses have `access-control-allow-origin: http://localhost:3000`; the like is a simple request, so no preflight). `OPTIONS /enrollments` → `400 Bad Request`, the `POST` is not sent. The preflight response has `access-control-allow-origin` and `access-control-allow-methods: GET`; the body (via curl) is `Disallowed CORS method`.
+- Network: `GET courses` and `POST like` are fine (200, both responses have `access-control-allow-origin: http://localhost:3000`; the like is a simple request, so no preflight). `OPTIONS /enrollments` → `400 Bad Request` (Chrome's reason: `PreflightInvalidStatus`), the `POST` is not sent. The preflight response has `access-control-allow-origin` and `access-control-allow-methods: GET`; the body (via curl) is `Disallowed CORS method`.
 - Cause: the origin is allowed, but the method `POST` requested by the preflight is not in `allow_methods`.
 - How I found it: step 4 (preflight 400) plus step 3 (the origin header is present and correct, so the problem is not the origin): the response header `access-control-allow-methods: GET` points to the methods.
 
@@ -88,14 +88,14 @@ Each breakage was introduced one at a time in `course-catalog-api/main.py`, then
 
 - What I did: `main.py` unchanged; opened `http://127.0.0.1:3000/filter` (and added `allowedDevOrigins: ["127.0.0.1"]` to `next.config.ts` for the experiment, removed afterwards).
 - Console: `Access to fetch at 'http://localhost:8000/courses' from origin 'http://127.0.0.1:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.`
-- Network: `courses` is red, the backend log says `GET /courses 200 OK`; the request carries `Origin: http://127.0.0.1:3000`, the response has no `access-control-allow-origin`. The preflight with this origin gets `400`, body `Disallowed CORS origin`.
+- Network: `courses` is red, the backend log says `GET /courses 200 OK`; the request carries `Origin: http://127.0.0.1:3000`, the response has no `access-control-allow-origin`. The preflight with this origin gets `400`, body `Disallowed CORS origin`. Without `allowedDevOrigins` the dev server page hangs on "Loading…" (Console: `WebSocket connection to 'ws://127.0.0.1:3000/_next/hmr?...' failed`) and no request to `localhost:8000` is sent at all — CORS only shows up after adding the line.
 - Cause: to the browser `localhost` and `127.0.0.1` are different hosts, so they are different origins; only `http://localhost:3000` is in `allow_origins`.
 - How I found it: step 3 — the console message names the origin `http://127.0.0.1:3000`, which is not the allowed one character for character. Fixed by opening the page at `http://localhost:3000` (or adding the second address to `allow_origins`).
 
 ### Breakage 5: a Python error that looks like CORS
 
 - What I did: in `list_courses` replaced the first `p["offset"]` with `p["ofset"]` (`offset, limit = p["ofset"], p["limit"]`).
-- Console: on `/filter` the same message as in breakage 1: `No 'Access-Control-Allow-Origin' header is present on the requested resource`, although CORS is configured correctly.
+- Console: on `/filter` (which shows "Failed to load courses") the same message as in breakage 1: `Access to fetch at 'http://localhost:8000/courses' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.`, although CORS is configured correctly.
 - Network: `courses` is red; ❤ and the form work as before (their routes are untouched: `POST like` → 200, `OPTIONS /enrollments` → 200). The `/courses` page shows `error.tsx`, because the Next.js server got an error from the backend: `GET /courses` → `500 Internal Server Error` in the backend log.
 - Cause: an unhandled exception in the route (`KeyError: 'ofset'`) becomes a `500` response produced outside `CORSMiddleware`, so it has no `access-control-*` headers (checked with `curl -i -H "Origin: http://localhost:3000" /courses`: `500`, no `access-control-allow-origin`); the browser reports it as a CORS error.
 - How I found it: the page that does not use CORS (`/courses`, requested by the Next.js server) also fails, so the cause is not CORS (steps 1 and 5); the backend terminal shows `500` and the traceback ending with `File ".../main.py", line 47, in list_courses` / `KeyError: 'ofset'`. Lesson: status and the backend terminal first, CORS settings after.
