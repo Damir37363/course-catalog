@@ -6,7 +6,7 @@ Next.js frontend of the "Advanced Web Technologies" semester project. Since Lab 
 
 **Lab 1** — pages `/`, `/about`, `/courses`, `/courses/[id]` (`params` typed as a `Promise`), `loading.tsx`, `not-found.tsx`, a shared navigation in `app/layout.tsx`.
 
-**Lab 3** — shadcn/ui (`components.json`, `lib/utils.ts`, `Button`, `Card`), `CourseCard` built from `Card`/`Button`, a responsive course grid, a brand color and the Sora heading font via `@theme` in `globals.css`.
+**Lab 3** — shadcn/ui (`components.json`, `lib/utils.ts`, `Button`, `Card`), `CourseCard` built from `Card`/`Button`, a responsive course grid, a brand color and the Sora heading font via `@theme` in `globals.css` (the font is self-hosted in `app/fonts` with `next/font/local`, so the build does not need Google Fonts).
 
 **Lab 5**
 - `lib/courses.ts`: `getCourses` / `getCourse` call the API (`cache: "no-store"`, manual `res.ok` check, `404` → `undefined`).

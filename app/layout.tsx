@@ -1,9 +1,16 @@
 import type { Metadata } from "next";
-import { Sora } from "next/font/google";
+import localFont from "next/font/local";
 import Link from "next/link";
 import "./globals.css";
 
-const sora = Sora({ subsets: ["latin"], variable: "--font-sora" });
+// Sora is self-hosted (app/fonts): downloading it from Google Fonts at build
+// time fails on networks that cannot reach fonts.googleapis.com.
+const sora = localFont({
+  src: "./fonts/sora-latin-wght-normal.woff2",
+  variable: "--font-sora",
+  weight: "100 800",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Course Catalog",
