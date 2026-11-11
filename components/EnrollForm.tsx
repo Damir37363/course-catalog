@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
-import type { Enrollment } from "@/lib/courses";
+import type { Enrollment, Student } from "@/lib/courses";
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 
@@ -11,58 +11,144 @@ type EnrollFormProps = {
   courseId: string;
 };
 
-type Status = "idle" | "sending" | "done" | "rejected" | "error";
+type Notice = { ok: boolean; text: string } | null;
+
+// The API answers errors as { detail: "text" } (404, 409) or as
+// { detail: [{ msg, ... }] } (422): turn both shapes into one line of text.
+async function errorText(res: Response): Promise<string> {
+  try {
+    const body = await res.json();
+    if (typeof body.detail === "string") return body.detail;
+    if (Array.isArray(body.detail)) return body.detail[0].msg;
+  } catch {
+    // the body is not JSON: fall through to the status code
+  }
+  return `API error: ${res.status}`;
+}
+
+function NoticeLine({ notice }: { notice: Notice }) {
+  if (!notice) return null;
+  return (
+    <p role="status" className={notice.ok ? "" : "text-red-600"}>
+      {notice.text}
+    </p>
+  );
+}
+
+const inputClass = "rounded-md border border-input bg-card px-3 py-2";
 
 export function EnrollForm({ courseId }: EnrollFormProps) {
-  const [studentName, setStudentName] = useState("");
-  const [status, setStatus] = useState<Status>("idle");
-  const [message, setMessage] = useState("");
+  // enrolling: the student number is the only thing the API needs
+  const [studentId, setStudentId] = useState("");
+  const [enrolling, setEnrolling] = useState(false);
+  const [enrollNotice, setEnrollNotice] = useState<Notice>(null);
 
-  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  // registering: creates a student and fills in the number for us
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [registering, setRegistering] = useState(false);
+  const [registerNotice, setRegisterNotice] = useState<Notice>(null);
+
+  async function handleEnroll(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setStatus("sending");
+    if (!/^\d+$/.test(studentId.trim())) {
+      setEnrollNotice({ ok: false, text: "Enter your student number (digits only)" });
+      return;
+    }
+    setEnrolling(true);
+    setEnrollNotice(null);
     try {
       const res = await fetch(`${API}/enrollments`, {
         method: "POST",
         // JSON body + this header make the request "non-simple" -> preflight
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ courseId, studentName }),
+        body: JSON.stringify({ courseId, studentId: Number(studentId) }),
       });
-      if (res.status === 422) {
-        // { detail: [{ loc, msg, type }, ...] }
-        const body = await res.json();
-        setMessage(body.detail[0].msg);
-        setStatus("rejected");
+      if (!res.ok) {
+        setEnrollNotice({ ok: false, text: await errorText(res) });
         return;
       }
-      if (!res.ok) throw new Error(`API error: ${res.status}`);
       const enrollment: Enrollment = await res.json();
-      setMessage(`Enrollment number: ${enrollment.id}`);
-      setStatus("done");
+      setEnrollNotice({
+        ok: true,
+        text: `You are enrolled. Enrollment number: ${enrollment.id}`,
+      });
     } catch {
-      setStatus("error");
+      setEnrollNotice({ ok: false, text: "Could not submit the enrollment" });
+    } finally {
+      setEnrolling(false);
+    }
+  }
+
+  async function handleRegister(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setRegistering(true);
+    setRegisterNotice(null);
+    try {
+      const res = await fetch(`${API}/students`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email }),
+      });
+      if (!res.ok) {
+        setRegisterNotice({ ok: false, text: await errorText(res) });
+        return;
+      }
+      const student: Student = await res.json();
+      setStudentId(String(student.id));
+      setEnrollNotice(null); // an old message about the number no longer applies
+      setRegisterNotice({
+        ok: true,
+        text: `Registered. Your student number is ${student.id}.`,
+      });
+    } catch {
+      setRegisterNotice({ ok: false, text: "Could not register the student" });
+    } finally {
+      setRegistering(false);
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex max-w-sm flex-col gap-2">
-      <label htmlFor="studentName">Your name</label>
-      <input
-        id="studentName"
-        value={studentName}
-        onChange={(e) => setStudentName(e.target.value)}
-        className="rounded-md border border-input bg-card px-3 py-2"
-      />
-      <Button type="submit" disabled={status === "sending"}>
-        Enroll
-      </Button>
-      {status === "done" && <p>You are enrolled. {message}</p>}
-      {status === "rejected" && (
-        <p className="text-red-600">The server rejected the data: {message}</p>
-      )}
-      {status === "error" && (
-        <p className="text-red-600">Could not submit the enrollment</p>
-      )}
-    </form>
+    <div className="flex max-w-sm flex-col gap-6">
+      <form onSubmit={handleEnroll} className="flex flex-col gap-2">
+        <label htmlFor="studentId">Your student number</label>
+        <input
+          id="studentId"
+          inputMode="numeric"
+          value={studentId}
+          onChange={(e) => setStudentId(e.target.value)}
+          className={inputClass}
+        />
+        <Button type="submit" disabled={enrolling}>
+          Enroll
+        </Button>
+        <NoticeLine notice={enrollNotice} />
+      </form>
+
+      <form onSubmit={handleRegister} className="flex flex-col gap-2">
+        <p className="text-sm text-muted-foreground">
+          No number yet? Register first, and it will be filled in above.
+        </p>
+        <label htmlFor="studentName">Name</label>
+        <input
+          id="studentName"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className={inputClass}
+        />
+        <label htmlFor="studentEmail">Email</label>
+        <input
+          id="studentEmail"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className={inputClass}
+        />
+        <Button type="submit" variant="outline" disabled={registering}>
+          Register
+        </Button>
+        <NoticeLine notice={registerNotice} />
+      </form>
+    </div>
   );
 }
