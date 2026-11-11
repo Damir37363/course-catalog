@@ -5,12 +5,20 @@ export type Course = {
   credits: number;
   isElective: boolean;
   likes: number;
+  level: string;
+};
+
+export type Student = {
+  id: number;
+  name: string;
+  email: string;
 };
 
 export type Enrollment = {
   id: number;
   courseId: string;
-  studentName: string;
+  studentId: number;
+  enrolledAt: string;
 };
 
 const API_URL = process.env.API_URL;
