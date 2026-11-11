@@ -13,12 +13,16 @@ Next.js frontend of the "Advanced Web Technologies" semester project. Since Lab 
 - `app/courses/error.tsx` (Client Component) with a "Try again" button that calls `retry`.
 - `components/ElectiveFilter.tsx` + `app/filter/page.tsx`: the "Electives only" checkbox, SWR, requests sent by the browser.
 - `components/LikeButton.tsx`: `POST /courses/{id}/like`, shows the number from the server's response.
-- `components/EnrollForm.tsx`: `POST /enrollments` with a JSON body, shows the enrollment number or the server's `422` message.
+- `components/EnrollForm.tsx`: `POST /enrollments` with a JSON body, shows the enrollment number or the server's error message (since Lab 7 it sends a student number, see below).
 - `lib/coursera.ts`: links to real Coursera courses (the backend does not store them).
+
+**Lab 7** (the backend moved to PostgreSQL, the frontend follows the new API contract)
+- `components/EnrollForm.tsx` sends `{courseId, studentId}`. The "Enroll" block needs a student number; the "Register" block (name and email) creates a student with `POST /students` and fills the number in. The server's messages are shown as they come: `Student not found` (404), `Student is already enrolled in this course` (409), `Student with this email already exists` (409), and the `422` text of Pydantic (for example, `String should have at least 2 characters`). A malformed email is stopped by the browser before any request is sent.
+- `lib/courses.ts`: the `Course` type has the new `level` field, `Enrollment` has `studentId` and `enrolledAt`, and there is a new `Student` type.
 
 ## How to run
 
-Start the **backend first**, then the frontend.
+Start the **backend first**, then the frontend. Since Lab 7 the backend needs its PostgreSQL database (see `course-catalog-api/README.md`: `alembic upgrade head`, then `seed.sql`).
 
 ```bash
 # terminal 1 — backend (see course-catalog-api/README.md)
@@ -57,6 +61,8 @@ Restart `npm run dev` after creating or changing the file.
 **Why the like gets by without a preflight and the enrollment does not.** A `POST` without a body and without custom headers is a "simple" request, so the browser just sends it and checks `access-control-allow-origin` in the response. The enrollment sends JSON (`Content-Type: application/json`), which is outside the "simple" kind, so the browser first asks the server with an `OPTIONS` preflight (`Access-Control-Request-Method`, `Access-Control-Request-Headers`) and sends the `POST` only after a positive answer; the permission is remembered for `access-control-max-age: 600` seconds.
 
 ## Breakage journal
+
+The journal was written in Lab 5, when the form sent a student name; since Lab 7 it sends a student number, but the CORS behaviour described below (the preflight for a JSON `POST`, the errors in the console) is the same.
 
 Each breakage was introduced one at a time in `course-catalog-api/main.py`, then rolled back with `git restore main.py`. Algorithm (Lecture 5, section 7): 1) is there a row in Network? 2) status; 3) `access-control-allow-origin` in the response and its exact value; 4) is there an `OPTIONS` before the request and its status; 5) the FastAPI terminal.
 
